@@ -888,44 +888,66 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
           throw new Error('Gemini API key not configured');
         }
 
-        const model = config.model || 'gemini-2.5-flash-image';
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-goog-api-key': geminiKey,
-            },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: prompt }] }],
-              generationConfig: { responseModalities: ['TEXT', 'IMAGE'] }
-            }),
-          }
-        );
+        // Trial list of models for "Nano Banana" in 2026
+        const modelsToTry = provider === 'gemini3'
+          ? ['gemini-3-pro-image-preview', 'gemini-3-pro-image']
+          : ['gemini-2.5-flash-image', 'gemini-2.0-flash-image', 'imagen-3.0-fast-generate-001'];
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          const errMsg = errorData.error?.message || `API error: ${response.status}`;
-          // If quota error, suggest free provider
-          if (errMsg.includes('quota') || errMsg.includes('Quota')) {
-            throw new Error('Quota exceeded! Switch to "Pollinations (FREE)" for unlimited generation.');
-          }
-          throw new Error(errMsg);
-        }
+        let lastError = null;
 
-        const data = await response.json();
-        const parts = data.candidates?.[0]?.content?.parts || [];
-        for (const part of parts) {
-          if (part.inlineData?.data) {
-            const mimeType = part.inlineData.mimeType || 'image/png';
-            imageUrl = `data:${mimeType};base64,${part.inlineData.data}`;
-            break;
+        for (const model of modelsToTry) {
+          try {
+            setProgress(`${config.icon} Trying ${model}...`);
+            const apiVersion = model.includes('preview') || model.includes('exp') ? 'v1beta' : 'v1';
+
+            const response = await fetch(
+              `https://generativelanguage.googleapis.com/${apiVersion}/models/${model}:generateContent`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-goog-api-key': geminiKey,
+                },
+                body: JSON.stringify({
+                  contents: [{ parts: [{ text: prompt }] }],
+                  generationConfig: { responseModalities: ['TEXT', 'IMAGE'] }
+                }),
+              }
+            );
+
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({}));
+              const errMsg = errorData.error?.message || `API error: ${response.status}`;
+              if (errMsg.includes('quota') || errMsg.includes('Quota') || errMsg.includes('limit: 0')) {
+                console.warn(`Model ${model} failed with quota, trying next...`);
+                lastError = errMsg;
+                continue; // Try next model in the chain
+              }
+              throw new Error(errMsg);
+            }
+
+            const data = await response.json();
+            const parts = data.candidates?.[0]?.content?.parts || [];
+            for (const part of parts) {
+              if (part.inlineData?.data) {
+                const mimeType = part.inlineData.mimeType || 'image/png';
+                imageUrl = `data:${mimeType};base64,${part.inlineData.data}`;
+                break;
+              }
+            }
+
+            if (imageUrl) break; // Success!
+          } catch (e) {
+            console.error(`Trial with ${model} failed:`, e);
+            lastError = e.message;
+            if (!e.message.includes('quota') && !e.message.includes('limit: 0')) {
+              throw e; // Reraise non-quota errors
+            }
           }
         }
 
         if (!imageUrl) {
-          throw new Error('No image generated. Try "Pollinations (FREE)" instead.');
+          throw new Error(`Nano Banana Quota reached on all models. ${lastError}`);
         }
 
       } else if (provider === 'openai') {
