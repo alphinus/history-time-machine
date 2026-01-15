@@ -22,11 +22,13 @@ const CATEGORY_CONFIG = {
 };
 
 const PROVIDER_CONFIG = {
-  // FREE - No API Key Required!
-  pollinations: { name: 'Pollinations (FREE)', icon: '🆓', color: 'emerald', keyType: null, model: 'flux' },
-  // Optional - Require API Keys
-  gemini3: { name: 'Gemini 3 Pro', icon: '✨', color: 'purple', keyType: 'gemini', model: 'gemini-3-pro-image-preview' },
-  nanobanana: { name: 'Nano Banana', icon: '🍌', color: 'amber', keyType: 'gemini', model: 'gemini-2.5-flash-image' },
+  // 🍌 NANO BANANA - The requested primary free tier model
+  nanobanana: { name: 'Nano Banana (Free Tier)', icon: '🍌', color: 'amber', keyType: 'gemini', model: 'gemini-2.0-flash-exp' },
+  // ✨ NANO BANANA PRO
+  gemini3: { name: 'Nano Banana Pro', icon: '✨', color: 'purple', keyType: 'gemini', model: 'gemini-3-pro-image-preview' },
+  // 🆓 POLLINATIONS - Backup free provider (unlimited)
+  pollinations: { name: 'Pollinations (Backup)', icon: '🆓', color: 'emerald', keyType: null, model: 'flux' },
+  // 🟢 DALL-E 3
   openai: { name: 'DALL-E 3', icon: '🟢', color: 'green', keyType: 'openai', model: 'dall-e-3' },
 };
 
@@ -847,10 +849,10 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
     setError(null);
     setResult(null);
 
-    // Determine provider - Pollinations is default (no API key needed!)
+    // Determine provider - Nano Banana is the requested primary model
     let provider = selectedProvider;
     if (provider === 'auto') {
-      provider = 'pollinations'; // Always available, no API key needed!
+      provider = hasGeminiKey ? 'nanobanana' : 'pollinations';
     }
 
     const config = PROVIDER_CONFIG[provider];
@@ -981,11 +983,8 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
   };
 
 
-  // Pollinations is ALWAYS available (no API key needed!)
-  const availableProviders = ['pollinations'];
-  if (hasGeminiKey) {
-    availableProviders.push('gemini3', 'nanobanana');
-  }
+  // Pollinations is ALWAYS available as backup
+  const availableProviders = ['nanobanana', 'gemini3', 'pollinations'];
   if (hasOpenAIKey) {
     availableProviders.push('openai');
   }
