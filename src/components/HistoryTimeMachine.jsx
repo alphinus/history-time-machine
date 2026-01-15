@@ -119,21 +119,21 @@ const fetchOnThisDay = async (month, day) => {
   const mm = month.toString().padStart(2, '0');
   const dd = day.toString().padStart(2, '0');
   const url = `https://api.wikimedia.org/feed/v1/wikipedia/en/onthisday/all/${mm}/${dd}`;
-  
+
   const response = await fetch(url, {
     headers: { 'Accept': 'application/json' },
   });
-  
+
   if (!response.ok) {
     throw new Error(`Wikipedia API error: ${response.status}`);
   }
-  
+
   return response.json();
 };
 
 const parseWikipediaEvents = (response) => {
   const events = [];
-  
+
   if (response.selected) {
     response.selected.forEach((event, index) => {
       events.push({
@@ -146,7 +146,7 @@ const parseWikipediaEvents = (response) => {
       });
     });
   }
-  
+
   if (response.events) {
     response.events.slice(0, 20).forEach((event, index) => {
       events.push({
@@ -159,7 +159,7 @@ const parseWikipediaEvents = (response) => {
       });
     });
   }
-  
+
   if (response.births) {
     response.births.slice(0, 10).forEach((event, index) => {
       events.push({
@@ -172,7 +172,7 @@ const parseWikipediaEvents = (response) => {
       });
     });
   }
-  
+
   if (response.deaths) {
     response.deaths.slice(0, 10).forEach((event, index) => {
       events.push({
@@ -185,7 +185,7 @@ const parseWikipediaEvents = (response) => {
       });
     });
   }
-  
+
   if (response.holidays) {
     response.holidays.forEach((holiday, index) => {
       events.push({
@@ -198,7 +198,7 @@ const parseWikipediaEvents = (response) => {
       });
     });
   }
-  
+
   return events;
 };
 
@@ -226,7 +226,7 @@ function LocationPicker({ coordinates, isLoading, error, onRequestLocation, onMa
       <h3 className="text-lg font-semibold text-white flex items-center gap-2">
         📍 Location
       </h3>
-      
+
       <button
         onClick={onRequestLocation}
         disabled={isLoading}
@@ -364,9 +364,8 @@ function HistoryDatePicker({ date, onDateChange }) {
             />
             <button
               onClick={() => setIsBCE(!isBCE)}
-              className={`px-3 py-2 rounded font-medium transition-colors text-sm ${
-                isBCE ? 'bg-amber-600 text-white' : 'bg-slate-600 text-slate-300'
-              }`}
+              className={`px-3 py-2 rounded font-medium transition-colors text-sm ${isBCE ? 'bg-amber-600 text-white' : 'bg-slate-600 text-slate-300'
+                }`}
             >
               {isBCE ? 'BCE' : 'CE'}
             </button>
@@ -477,8 +476,8 @@ function OnThisDayPanel({ date, onSelectEvent }) {
     holidays: events.filter(e => e.category === 'holidays'),
   };
 
-  const displayEvents = activeCategory === 'all' 
-    ? events 
+  const displayEvents = activeCategory === 'all'
+    ? events
     : groupedEvents[activeCategory] || [];
 
   const sortedEvents = [...displayEvents].sort((a, b) => {
@@ -504,11 +503,10 @@ function OnThisDayPanel({ date, onSelectEvent }) {
       <div className="flex flex-wrap gap-1.5">
         <button
           onClick={() => setActiveCategory('all')}
-          className={`px-2.5 py-1 rounded-full text-xs transition-colors ${
-            activeCategory === 'all'
-              ? 'bg-white/20 text-white'
-              : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-          }`}
+          className={`px-2.5 py-1 rounded-full text-xs transition-colors ${activeCategory === 'all'
+            ? 'bg-white/20 text-white'
+            : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+            }`}
         >
           All ({events.length})
         </button>
@@ -519,11 +517,10 @@ function OnThisDayPanel({ date, onSelectEvent }) {
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
-              className={`px-2.5 py-1 rounded-full text-xs transition-colors flex items-center gap-1 ${
-                activeCategory === cat
-                  ? 'bg-slate-600 text-white'
-                  : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-              }`}
+              className={`px-2.5 py-1 rounded-full text-xs transition-colors flex items-center gap-1 ${activeCategory === cat
+                ? 'bg-slate-600 text-white'
+                : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                }`}
             >
               <span>{config.icon}</span>
               <span className="hidden sm:inline">{config.label}</span>
@@ -557,7 +554,7 @@ function OnThisDayPanel({ date, onSelectEvent }) {
             sortedEvents.map(event => {
               const config = CATEGORY_CONFIG[event.category];
               const isExpanded = expandedEvent === event.id;
-              
+
               return (
                 <div
                   key={event.id}
@@ -573,7 +570,7 @@ function OnThisDayPanel({ date, onSelectEvent }) {
                         className="w-10 h-10 object-cover rounded flex-shrink-0"
                       />
                     )}
-                    
+
                     <div className="flex-1 min-w-0">
                       {event.year && (
                         <span className="inline-block px-2 py-0.5 rounded text-xs 
@@ -581,11 +578,11 @@ function OnThisDayPanel({ date, onSelectEvent }) {
                           {formatYear(event.year)}
                         </span>
                       )}
-                      
+
                       <p className={`text-slate-200 text-sm ${isExpanded ? '' : 'line-clamp-2'}`}>
                         {event.text}
                       </p>
-                      
+
                       {isExpanded && (
                         <div className="mt-2 space-y-2">
                           {event.wikipediaUrl && (
@@ -599,7 +596,7 @@ function OnThisDayPanel({ date, onSelectEvent }) {
                               📖 Wikipedia →
                             </a>
                           )}
-                          
+
                           {onSelectEvent && (
                             <button
                               onClick={(e) => {
@@ -616,7 +613,7 @@ function OnThisDayPanel({ date, onSelectEvent }) {
                         </div>
                       )}
                     </div>
-                    
+
                     <span className="text-sm flex-shrink-0" title={config.label}>
                       {config.icon}
                     </span>
@@ -647,12 +644,12 @@ function ApiKeySettings({ isOpen, onClose }) {
   const handleSave = async (keyType) => {
     const key = inputs[keyType].trim();
     if (!key) return;
-    
+
     setValidating(keyType);
-    
+
     // Simulate validation delay
     await new Promise(r => setTimeout(r, 1000));
-    
+
     ApiKeyStorage.saveKey(keyType, key);
     setSavedKeys(prev => ({ ...prev, [keyType]: true }));
     setInputs(prev => ({ ...prev, [keyType]: '' }));
@@ -702,7 +699,7 @@ function ApiKeySettings({ isOpen, onClose }) {
                 </span>
               )}
             </div>
-            
+
             <div className="flex items-center gap-2 text-xs">
               <span className="text-slate-400">Enables:</span>
               <span className="px-2 py-0.5 bg-slate-600 rounded text-slate-300">🍌 Nano Banana</span>
@@ -766,7 +763,7 @@ function ApiKeySettings({ isOpen, onClose }) {
                 </span>
               )}
             </div>
-            
+
             <div className="flex items-center gap-2 text-xs">
               <span className="text-slate-400">Enables:</span>
               <span className="px-2 py-0.5 bg-slate-600 rounded text-slate-300">🟢 DALL-E 3</span>
@@ -842,17 +839,17 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
 
   const handleGenerate = async () => {
     if (!prompt) return;
-    
+
     setIsGenerating(true);
     setError(null);
     setResult(null);
-    
+
     // Determine provider
     let provider = selectedProvider;
     if (provider === 'auto') {
       provider = hasGeminiKey ? 'nanobanana' : (hasOpenAIKey ? 'openai' : null);
     }
-    
+
     if (!provider) {
       setError('No API keys configured');
       setIsGenerating(false);
@@ -862,19 +859,104 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
     const config = PROVIDER_CONFIG[provider];
     setProgress(`${config.icon} Generating with ${config.name}...`);
 
-    // Simulate image generation (in real app, this would call the actual APIs)
-    await new Promise(r => setTimeout(r, 2500));
+    try {
+      let imageUrl = null;
 
-    // For demo, show a placeholder result
-    setResult({
-      provider,
-      imageUrl: `https://picsum.photos/seed/${Date.now()}/800/600`,
-      generatedAt: new Date(),
-    });
-    
-    setIsGenerating(false);
-    setProgress('');
+      if (provider === 'nanobanana' || provider === 'gemini') {
+        // Use Gemini gemini-2.5-flash-image model for image generation
+        const geminiKey = ApiKeyStorage.getKey('gemini');
+        const model = 'gemini-2.5-flash-image';
+
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': geminiKey,
+            },
+            body: JSON.stringify({
+              contents: [{
+                parts: [{ text: prompt }]
+              }],
+              generationConfig: {
+                responseModalities: ['TEXT', 'IMAGE']
+              }
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error?.message || `API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Extract image from response
+        const parts = data.candidates?.[0]?.content?.parts || [];
+        for (const part of parts) {
+          if (part.inlineData?.data) {
+            // Convert base64 to data URL
+            const mimeType = part.inlineData.mimeType || 'image/png';
+            imageUrl = `data:${mimeType};base64,${part.inlineData.data}`;
+            break;
+          }
+        }
+
+        if (!imageUrl) {
+          throw new Error('No image was generated. Try a different prompt.');
+        }
+
+      } else if (provider === 'openai') {
+        // Use OpenAI DALL-E 3
+        const openaiKey = ApiKeyStorage.getKey('openai');
+
+        const response = await fetch('https://api.openai.com/v1/images/generations', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${openaiKey}`,
+          },
+          body: JSON.stringify({
+            model: 'dall-e-3',
+            prompt: prompt,
+            n: 1,
+            size: '1024x1024',
+            response_format: 'b64_json',
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error?.message || `API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const b64 = data.data?.[0]?.b64_json;
+
+        if (!b64) {
+          throw new Error('No image was generated');
+        }
+
+        imageUrl = `data:image/png;base64,${b64}`;
+      }
+
+      setResult({
+        provider,
+        imageUrl,
+        generatedAt: new Date(),
+      });
+
+    } catch (err) {
+      console.error('Image generation error:', err);
+      setError(err.message || 'Failed to generate image');
+    } finally {
+      setIsGenerating(false);
+      setProgress('');
+    }
   };
+
 
   if (!hasAnyKey) {
     return (
@@ -983,9 +1065,6 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
               className="w-full h-auto"
             />
           </div>
-          <p className="text-slate-500 text-xs text-center">
-            Demo image from Picsum. Real generation requires valid API keys.
-          </p>
         </div>
       )}
     </div>
@@ -1127,7 +1206,7 @@ export default function HistoryTimeMachine() {
           </div>
 
           {/* Right Column */}
-          <OnThisDayPanel 
+          <OnThisDayPanel
             date={date}
             onSelectEvent={handleSelectEvent}
           />
@@ -1168,11 +1247,10 @@ export default function HistoryTimeMachine() {
             </div>
             <button
               onClick={handleCopy}
-              className={`w-full py-2 rounded-lg transition-colors font-medium ${
-                copied 
-                  ? 'bg-green-600 text-white' 
-                  : 'bg-slate-600 hover:bg-slate-500 text-white'
-              }`}
+              className={`w-full py-2 rounded-lg transition-colors font-medium ${copied
+                ? 'bg-green-600 text-white'
+                : 'bg-slate-600 hover:bg-slate-500 text-white'
+                }`}
             >
               {copied ? '✓ Copied!' : '📋 Copy to Clipboard'}
             </button>
@@ -1180,13 +1258,13 @@ export default function HistoryTimeMachine() {
         )}
 
         {/* Image Generation */}
-        <ImageGenerationPanel 
+        <ImageGenerationPanel
           prompt={generatedPrompt}
           onOpenSettings={() => setShowSettings(true)}
         />
 
         {/* Settings Modal */}
-        <ApiKeySettings 
+        <ApiKeySettings
           isOpen={showSettings}
           onClose={() => setShowSettings(false)}
         />
