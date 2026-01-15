@@ -22,9 +22,10 @@ const CATEGORY_CONFIG = {
 };
 
 const PROVIDER_CONFIG = {
-  nanobanana: { name: 'Nano Banana', icon: '🍌', color: 'amber', keyType: 'gemini' },
-  openai: { name: 'OpenAI DALL-E 3', icon: '🟢', color: 'green', keyType: 'openai' },
-  gemini: { name: 'Gemini Imagen', icon: '🔵', color: 'blue', keyType: 'gemini' },
+  nanobanana: { name: 'Nano Banana (2.5)', icon: '🍌', color: 'amber', keyType: 'gemini', model: 'gemini-2.5-flash-image' },
+  gemini3: { name: 'Gemini 3 Pro Image', icon: '✨', color: 'purple', keyType: 'gemini', model: 'gemini-3-pro-image-preview' },
+  openai: { name: 'OpenAI DALL-E 3', icon: '🟢', color: 'green', keyType: 'openai', model: 'dall-e-3' },
+  gemini: { name: 'Gemini 2.5 Flash', icon: '🔵', color: 'blue', keyType: 'gemini', model: 'gemini-2.5-flash-image' },
 };
 
 // ============================================
@@ -847,7 +848,7 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
     // Determine provider
     let provider = selectedProvider;
     if (provider === 'auto') {
-      provider = hasGeminiKey ? 'nanobanana' : (hasOpenAIKey ? 'openai' : null);
+      provider = hasGeminiKey ? 'gemini3' : (hasOpenAIKey ? 'openai' : null);
     }
 
     if (!provider) {
@@ -862,10 +863,11 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
     try {
       let imageUrl = null;
 
-      if (provider === 'nanobanana' || provider === 'gemini') {
-        // Use Gemini gemini-2.5-flash-image model for image generation
+      if (provider === 'nanobanana' || provider === 'gemini' || provider === 'gemini3') {
+        // Use Gemini image generation model from config
         const geminiKey = ApiKeyStorage.getKey('gemini');
-        const model = 'gemini-2.5-flash-image';
+        const model = config.model || 'gemini-2.5-flash-image';
+
 
         const response = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
@@ -977,7 +979,7 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
 
   const availableProviders = [];
   if (hasGeminiKey) {
-    availableProviders.push('nanobanana', 'gemini');
+    availableProviders.push('gemini3', 'nanobanana', 'gemini');
   }
   if (hasOpenAIKey) {
     availableProviders.push('openai');
