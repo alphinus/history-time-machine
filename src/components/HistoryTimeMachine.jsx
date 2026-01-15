@@ -22,10 +22,12 @@ const CATEGORY_CONFIG = {
 };
 
 const PROVIDER_CONFIG = {
-  nanobanana: { name: 'Nano Banana (2.5)', icon: '🍌', color: 'amber', keyType: 'gemini', model: 'gemini-2.5-flash-image' },
-  gemini3: { name: 'Gemini 3 Pro Image', icon: '✨', color: 'purple', keyType: 'gemini', model: 'gemini-3-pro-image-preview' },
-  openai: { name: 'OpenAI DALL-E 3', icon: '🟢', color: 'green', keyType: 'openai', model: 'dall-e-3' },
-  gemini: { name: 'Gemini 2.5 Flash', icon: '🔵', color: 'blue', keyType: 'gemini', model: 'gemini-2.5-flash-image' },
+  // FREE - No API Key Required!
+  pollinations: { name: 'Pollinations (FREE)', icon: '🆓', color: 'emerald', keyType: null, model: 'flux' },
+  // Optional - Require API Keys
+  gemini3: { name: 'Gemini 3 Pro', icon: '✨', color: 'purple', keyType: 'gemini', model: 'gemini-3-pro-image-preview' },
+  nanobanana: { name: 'Nano Banana', icon: '🍌', color: 'amber', keyType: 'gemini', model: 'gemini-2.5-flash-image' },
+  openai: { name: 'DALL-E 3', icon: '🟢', color: 'green', keyType: 'openai', model: 'dall-e-3' },
 };
 
 // ============================================
@@ -845,30 +847,46 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
     setError(null);
     setResult(null);
 
-    // Determine provider
+    // Determine provider - Pollinations is default (no API key needed!)
     let provider = selectedProvider;
     if (provider === 'auto') {
-      provider = hasGeminiKey ? 'gemini3' : (hasOpenAIKey ? 'openai' : null);
+      provider = 'pollinations'; // Always available, no API key needed!
     }
 
-    if (!provider) {
-      setError('No API keys configured');
+    const config = PROVIDER_CONFIG[provider];
+    if (!config) {
+      setError('Invalid provider selected');
       setIsGenerating(false);
       return;
     }
 
-    const config = PROVIDER_CONFIG[provider];
     setProgress(`${config.icon} Generating with ${config.name}...`);
 
     try {
       let imageUrl = null;
 
-      if (provider === 'nanobanana' || provider === 'gemini' || provider === 'gemini3') {
-        // Use Gemini image generation model from config
+      if (provider === 'pollinations') {
+        // 🆓 FREE - Pollinations.ai - No API Key, No Quota, Unlimited!
+        // Simple URL-based API: https://image.pollinations.ai/prompt/{prompt}
+        const encodedPrompt = encodeURIComponent(prompt);
+        const seed = Math.floor(Math.random() * 1000000);
+        imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=768&seed=${seed}&nologo=true&model=flux`;
+
+        // Pre-fetch to ensure the image is generated
+        setProgress(`${config.icon} Rendering image...`);
+        const testResponse = await fetch(imageUrl, { method: 'HEAD' });
+        if (!testResponse.ok) {
+          throw new Error('Image generation failed. Please try again.');
+        }
+
+      } else if (provider === 'nanobanana' || provider === 'gemini3') {
+        // Gemini API (requires API key)
         const geminiKey = ApiKeyStorage.getKey('gemini');
+        if (!geminiKey) {
+          throw new Error('Gemini API key not configured');
+        }
+
         const model = config.model || 'gemini-2.5-flash-image';
-
-
         const response = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
           {
@@ -878,28 +896,26 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
               'x-goog-api-key': geminiKey,
             },
             body: JSON.stringify({
-              contents: [{
-                parts: [{ text: prompt }]
-              }],
-              generationConfig: {
-                responseModalities: ['TEXT', 'IMAGE']
-              }
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { responseModalities: ['TEXT', 'IMAGE'] }
             }),
           }
         );
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error?.message || `API error: ${response.status}`);
+          const errMsg = errorData.error?.message || `API error: ${response.status}`;
+          // If quota error, suggest free provider
+          if (errMsg.includes('quota') || errMsg.includes('Quota')) {
+            throw new Error('Quota exceeded! Switch to "Pollinations (FREE)" for unlimited generation.');
+          }
+          throw new Error(errMsg);
         }
 
         const data = await response.json();
-
-        // Extract image from response
         const parts = data.candidates?.[0]?.content?.parts || [];
         for (const part of parts) {
           if (part.inlineData?.data) {
-            // Convert base64 to data URL
             const mimeType = part.inlineData.mimeType || 'image/png';
             imageUrl = `data:${mimeType};base64,${part.inlineData.data}`;
             break;
@@ -907,12 +923,15 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
         }
 
         if (!imageUrl) {
-          throw new Error('No image was generated. Try a different prompt.');
+          throw new Error('No image generated. Try "Pollinations (FREE)" instead.');
         }
 
       } else if (provider === 'openai') {
-        // Use OpenAI DALL-E 3
+        // OpenAI DALL-E 3 (requires API key)
         const openaiKey = ApiKeyStorage.getKey('openai');
+        if (!openaiKey) {
+          throw new Error('OpenAI API key not configured');
+        }
 
         const response = await fetch('https://api.openai.com/v1/images/generations', {
           method: 'POST',
@@ -936,12 +955,14 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
 
         const data = await response.json();
         const b64 = data.data?.[0]?.b64_json;
-
         if (!b64) {
           throw new Error('No image was generated');
         }
-
         imageUrl = `data:image/png;base64,${b64}`;
+      }
+
+      if (!imageUrl) {
+        throw new Error('No image URL generated');
       }
 
       setResult({
@@ -960,26 +981,10 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
   };
 
 
-  if (!hasAnyKey) {
-    return (
-      <div className="p-6 bg-slate-800 rounded-xl text-center space-y-4">
-        <div className="text-4xl">🔑</div>
-        <p className="text-slate-300">
-          Configure API keys to enable image generation
-        </p>
-        <button
-          onClick={onOpenSettings}
-          className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white"
-        >
-          Configure API Keys
-        </button>
-      </div>
-    );
-  }
-
-  const availableProviders = [];
+  // Pollinations is ALWAYS available (no API key needed!)
+  const availableProviders = ['pollinations'];
   if (hasGeminiKey) {
-    availableProviders.push('gemini3', 'nanobanana', 'gemini');
+    availableProviders.push('gemini3', 'nanobanana');
   }
   if (hasOpenAIKey) {
     availableProviders.push('openai');
