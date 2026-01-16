@@ -23,7 +23,7 @@ const CATEGORY_CONFIG = {
 
 const PROVIDER_CONFIG = {
   // 🍌 NANO BANANA - The primary free tier image generation model
-  nanobanana: { name: 'Nano Banana (Free Tier)', icon: '🍌', color: 'amber', keyType: 'gemini', model: 'gemini-2.5-flash-image' },
+  nanobanana: { name: 'Nano Banana (Free Tier)', icon: '🍌', color: 'amber', keyType: 'gemini', model: 'gemini-2.0-flash-exp-image-generation' },
   // ✨ NANO BANANA PRO
   gemini3: { name: 'Nano Banana Pro', icon: '✨', color: 'purple', keyType: 'gemini', model: 'gemini-3-pro-image-preview' },
   // 🆓 POLLINATIONS - Backup free provider (unlimited)
@@ -888,10 +888,10 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
           throw new Error('Gemini API key not configured');
         }
 
-        // Nano Banana models - fallback chain with proven working models
+        // Nano Banana models - correct model names for image generation
         const modelsToTry = provider === 'gemini3'
           ? ['gemini-3-pro-image-preview']
-          : ['gemini-2.5-flash-image', 'gemini-2.0-flash-exp'];
+          : ['gemini-2.0-flash-exp-image-generation', 'gemini-2.0-flash-preview-image-generation'];
 
         let lastError = null;
 
