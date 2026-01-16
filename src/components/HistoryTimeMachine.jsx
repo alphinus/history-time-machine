@@ -872,14 +872,9 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
         // Simple URL-based API: https://image.pollinations.ai/prompt/{prompt}
         const encodedPrompt = encodeURIComponent(prompt);
         const seed = Math.floor(Math.random() * 1000000);
+        // Pollinations generates image on first request - just set the URL
         imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=768&seed=${seed}&nologo=true&model=flux`;
-
-        // Pre-fetch to ensure the image is generated
-        setProgress(`${config.icon} Rendering image...`);
-        const testResponse = await fetch(imageUrl, { method: 'HEAD' });
-        if (!testResponse.ok) {
-          throw new Error('Image generation failed. Please try again.');
-        }
+        console.log('[Pollinations] URL:', imageUrl);
 
       } else if (provider === 'nanobanana' || provider === 'gemini3') {
         // Nano Banana uses generateContent with responseModalities: ["IMAGE"]
@@ -1006,13 +1001,9 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
 
           const encodedPrompt = encodeURIComponent(prompt);
           const seed = Math.floor(Math.random() * 1000000);
+          // Pollinations generates image on first request - no pre-fetch needed
           imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=768&seed=${seed}&nologo=true&model=flux`;
-
-          // Pre-fetch to ensure image is ready
-          const testResponse = await fetch(imageUrl, { method: 'HEAD' });
-          if (!testResponse.ok) {
-            throw new Error(`All providers failed. Last error: ${lastError}`);
-          }
+          console.log('[Pollinations] URL:', imageUrl);
         }
 
       } else if (provider === 'openai') {
