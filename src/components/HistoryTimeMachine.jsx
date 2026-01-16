@@ -22,8 +22,8 @@ const CATEGORY_CONFIG = {
 };
 
 const PROVIDER_CONFIG = {
-  // 🍌 NANO BANANA - The requested primary free tier model
-  nanobanana: { name: 'Nano Banana (Free Tier)', icon: '🍌', color: 'amber', keyType: 'gemini', model: 'gemini-2.0-flash-exp' },
+  // 🍌 NANO BANANA - The primary free tier image generation model
+  nanobanana: { name: 'Nano Banana (Free Tier)', icon: '🍌', color: 'amber', keyType: 'gemini', model: 'gemini-2.5-flash-image' },
   // ✨ NANO BANANA PRO
   gemini3: { name: 'Nano Banana Pro', icon: '✨', color: 'purple', keyType: 'gemini', model: 'gemini-3-pro-image-preview' },
   // 🆓 POLLINATIONS - Backup free provider (unlimited)
@@ -888,10 +888,10 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
           throw new Error('Gemini API key not configured');
         }
 
-        // Trial list of models for "Nano Banana" in 2026
+        // Nano Banana models - gemini-2.5-flash-image is the primary free-tier model
         const modelsToTry = provider === 'gemini3'
-          ? ['gemini-3-pro-image-preview', 'gemini-3-pro-image']
-          : ['gemini-2.5-flash-image', 'gemini-2.0-flash-image', 'imagen-3.0-fast-generate-001'];
+          ? ['gemini-3-pro-image-preview']
+          : ['gemini-2.5-flash-image', 'gemini-2.5-flash-image-preview'];
 
         let lastError = null;
 
@@ -910,7 +910,10 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
                   'x-goog-api-key': geminiKey,
                 },
                 body: JSON.stringify({
-                  contents: [{ parts: [{ text: prompt }] }]
+                  contents: [{ parts: [{ text: prompt }] }],
+                  generationConfig: {
+                    responseModalities: ["TEXT", "IMAGE"]
+                  }
                 }),
               }
             );
