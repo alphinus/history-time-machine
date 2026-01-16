@@ -910,7 +910,7 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
                 },
                 body: JSON.stringify({
                   contents: [{ parts: [{ text: prompt }] }],
-                  generationConfig: { responseModalities: ['TEXT', 'IMAGE'] }
+                  generationConfig: { response_modalities: ['TEXT', 'IMAGE'] }
                 }),
               }
             );
