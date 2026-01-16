@@ -955,8 +955,64 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
           }
         }
 
+        // If Nano Banana failed, try Imagen 4 with :predict endpoint
         if (!imageUrl) {
-          throw new Error(`Nano Banana failed. ${lastError}`);
+          const imagenModels = ['imagen-4.0-generate-001', 'imagen-4.0-fast-generate-001'];
+
+          for (const model of imagenModels) {
+            try {
+              setProgress(`${config.icon} Trying ${model}...`);
+
+              const response = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${model}:predict`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'x-goog-api-key': geminiKey,
+                  },
+                  body: JSON.stringify({
+                    instances: [{ prompt: prompt }],
+                    parameters: { sampleCount: 1, aspectRatio: "16:9" }
+                  }),
+                }
+              );
+
+              if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                console.warn(`[Imagen] ${model} failed:`, errorData.error?.message);
+                lastError = `${model}: ${errorData.error?.message}`;
+                continue;
+              }
+
+              const data = await response.json();
+              const predictions = data.predictions || [];
+              if (predictions.length > 0 && predictions[0].bytesBase64Encoded) {
+                imageUrl = `data:image/png;base64,${predictions[0].bytesBase64Encoded}`;
+                console.log(`[Imagen] Success with ${model}!`);
+                break;
+              }
+            } catch (e) {
+              console.error(`[Imagen] ${model} error:`, e);
+              lastError = e.message;
+            }
+          }
+        }
+
+        // If still no image, fall back to Pollinations (always works)
+        if (!imageUrl) {
+          console.log('[Fallback] All Gemini/Imagen models failed, using Pollinations...');
+          setProgress('🆓 Falling back to Pollinations...');
+
+          const encodedPrompt = encodeURIComponent(prompt);
+          const seed = Math.floor(Math.random() * 1000000);
+          imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=768&seed=${seed}&nologo=true&model=flux`;
+
+          // Pre-fetch to ensure image is ready
+          const testResponse = await fetch(imageUrl, { method: 'HEAD' });
+          if (!testResponse.ok) {
+            throw new Error(`All providers failed. Last error: ${lastError}`);
+          }
         }
 
       } else if (provider === 'openai') {
