@@ -22,10 +22,10 @@ const CATEGORY_CONFIG = {
 };
 
 const PROVIDER_CONFIG = {
-  // 🍌 IMAGEN - Uses :predict endpoint for image generation
-  nanobanana: { name: 'Imagen 3 (Free Tier)', icon: '🍌', color: 'amber', keyType: 'gemini', model: 'imagen-3.0-generate-002' },
-  // ✨ IMAGEN PRO
-  gemini3: { name: 'Imagen 3 Pro', icon: '✨', color: 'purple', keyType: 'gemini', model: 'imagen-3.0-generate-002' },
+  // 🍌 NANO BANANA - gemini-2.5-flash-image with generateContent
+  nanobanana: { name: 'Nano Banana', icon: '🍌', color: 'amber', keyType: 'gemini', model: 'gemini-2.5-flash-image' },
+  // ✨ NANO BANANA PRO - gemini-3-pro-image-preview
+  gemini3: { name: 'Nano Banana Pro', icon: '✨', color: 'purple', keyType: 'gemini', model: 'gemini-3-pro-image-preview' },
   // 🆓 POLLINATIONS - Backup free provider (unlimited)
   pollinations: { name: 'Pollinations (Backup)', icon: '🆓', color: 'emerald', keyType: null, model: 'flux' },
   // 🟢 DALL-E 3
@@ -882,16 +882,19 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
         }
 
       } else if (provider === 'nanobanana' || provider === 'gemini3') {
-        // Imagen API - uses :predict endpoint, NOT :generateContent
+        // Nano Banana uses generateContent with responseModalities: ["IMAGE"]
         const geminiKey = ApiKeyStorage.getKey('gemini');
         if (!geminiKey) {
           throw new Error('Gemini API key not configured');
         }
 
-        // Imagen models - these use the :predict endpoint
+        // Real model names from ListModels API:
+        // - gemini-2.5-flash-image = "Nano Banana"
+        // - gemini-3-pro-image-preview = "Nano Banana Pro"
+        // - imagen-4.0-generate-001 = "Imagen 4" (uses :predict)
         const modelsToTry = provider === 'gemini3'
-          ? ['imagen-3.0-generate-002', 'imagen-3.0-fast-generate-001']
-          : ['imagen-3.0-generate-002', 'imagen-3.0-fast-generate-001'];
+          ? ['gemini-3-pro-image-preview', 'gemini-2.5-flash-image']
+          : ['gemini-2.5-flash-image', 'gemini-3-pro-image-preview'];
 
         let lastError = null;
 
@@ -899,9 +902,8 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
           try {
             setProgress(`${config.icon} Trying ${model}...`);
 
-            // Imagen uses :predict endpoint, NOT :generateContent
             const response = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/${model}:predict`,
+              `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
               {
                 method: 'POST',
                 headers: {
@@ -909,10 +911,9 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
                   'x-goog-api-key': geminiKey,
                 },
                 body: JSON.stringify({
-                  instances: [{ prompt: prompt }],
-                  parameters: {
-                    sampleCount: 1,
-                    aspectRatio: "16:9"
+                  contents: [{ parts: [{ text: prompt }] }],
+                  generationConfig: {
+                    responseModalities: ["IMAGE", "TEXT"]
                   }
                 }),
               }
@@ -923,36 +924,39 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
               const errMsg = errorData.error?.message || `API error: ${response.status}`;
               const errStatus = response.status;
 
-              // Handle quota errors and model-not-found by trying next model
-              const isQuotaError = errMsg.includes('quota') || errMsg.includes('Quota') || errMsg.includes('limit: 0') || errStatus === 429;
-              const isModelNotFound = errStatus === 404 || errMsg.includes('not found') || errMsg.includes('is not found');
-
-              if (isQuotaError || isModelNotFound) {
-                console.warn(`[Imagen] Model ${model} failed (${errStatus}): ${errMsg}`);
-                lastError = `${model}: ${errMsg}`;
-                continue; // Try next model in the chain
-              }
-              throw new Error(errMsg);
+              console.warn(`[NanoBanana] ${model} failed (${errStatus}): ${errMsg}`);
+              lastError = `${model}: ${errMsg}`;
+              continue; // Try next model
             }
 
             const data = await response.json();
-            // Imagen response format: { predictions: [{ bytesBase64Encoded: "...", mimeType: "..." }] }
-            const predictions = data.predictions || [];
-            if (predictions.length > 0 && predictions[0].bytesBase64Encoded) {
-              const mimeType = predictions[0].mimeType || 'image/png';
-              imageUrl = `data:${mimeType};base64,${predictions[0].bytesBase64Encoded}`;
+            console.log(`[NanoBanana] Response:`, JSON.stringify(data).slice(0, 500));
+
+            // Look for image in response parts
+            const parts = data.candidates?.[0]?.content?.parts || [];
+            for (const part of parts) {
+              if (part.inlineData?.data) {
+                const mimeType = part.inlineData.mimeType || 'image/png';
+                imageUrl = `data:${mimeType};base64,${part.inlineData.data}`;
+                break;
+              }
             }
 
-            if (imageUrl) break; // Success!
+            if (imageUrl) {
+              console.log(`[NanoBanana] Success with ${model}!`);
+              break;
+            } else {
+              console.warn(`[NanoBanana] ${model} returned no image`);
+              lastError = `${model}: No image in response`;
+            }
           } catch (e) {
-            console.error(`[Imagen] Trial with ${model} failed:`, e);
+            console.error(`[NanoBanana] ${model} error:`, e);
             lastError = e.message;
-            // Continue to next model for any error
           }
         }
 
         if (!imageUrl) {
-          throw new Error(`Image generation failed on all models. ${lastError}`);
+          throw new Error(`Nano Banana failed. ${lastError}`);
         }
 
       } else if (provider === 'openai') {
