@@ -117,6 +117,56 @@ const ApiKeyStorage = {
 };
 
 // ============================================
+// GOOGLE OAUTH STORAGE
+// ============================================
+
+// IMPORTANT: Replace with your OAuth Client ID from Google Cloud Console
+// Get it from: https://console.cloud.google.com/apis/credentials
+const GOOGLE_CLIENT_ID = 'YOUR_CLIENT_ID.apps.googleusercontent.com';
+
+const OAuthStorage = {
+  saveTokens: (accessToken, expiresIn) => {
+    try {
+      const expiresAt = Date.now() + (expiresIn * 1000);
+      localStorage.setItem('google_oauth_token', accessToken);
+      localStorage.setItem('google_oauth_expires', expiresAt.toString());
+    } catch (e) {
+      console.error('Failed to save OAuth tokens:', e);
+    }
+  },
+
+  getToken: () => {
+    try {
+      const token = localStorage.getItem('google_oauth_token');
+      const expires = localStorage.getItem('google_oauth_expires');
+      if (!token || !expires) return null;
+
+      // Check if token is expired
+      if (Date.now() > parseInt(expires)) {
+        console.log('[OAuth] Token expired, clearing...');
+        OAuthStorage.clearTokens();
+        return null;
+      }
+      return token;
+    } catch {
+      return null;
+    }
+  },
+
+  hasValidToken: () => !!OAuthStorage.getToken(),
+
+  clearTokens: () => {
+    localStorage.removeItem('google_oauth_token');
+    localStorage.removeItem('google_oauth_expires');
+  },
+
+  getExpiresAt: () => {
+    const expires = localStorage.getItem('google_oauth_expires');
+    return expires ? parseInt(expires) : null;
+  },
+};
+
+// ============================================
 // WIKIPEDIA SERVICE
 // ============================================
 
@@ -206,6 +256,89 @@ const parseWikipediaEvents = (response) => {
 
   return events;
 };
+
+// ============================================
+// GOOGLE OAUTH HOOK
+// ============================================
+
+function useGoogleAuth() {
+  const [isSignedIn, setIsSignedIn] = useState(OAuthStorage.hasValidToken());
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Check token expiry periodically
+  useEffect(() => {
+    const checkToken = () => {
+      const wasSignedIn = isSignedIn;
+      const nowSignedIn = OAuthStorage.hasValidToken();
+      if (wasSignedIn && !nowSignedIn) {
+        setIsSignedIn(false);
+        console.log('[OAuth] Token expired, user signed out');
+      }
+    };
+
+    const interval = setInterval(checkToken, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, [isSignedIn]);
+
+  const signIn = useCallback(() => {
+    if (!window.google?.accounts?.oauth2) {
+      setError('Google Identity Services nicht geladen. Bitte Seite neu laden.');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const tokenClient = window.google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: 'https://www.googleapis.com/auth/generative-language.retriever https://www.googleapis.com/auth/cloud-platform',
+        callback: (response) => {
+          setIsLoading(false);
+          if (response.error) {
+            console.error('[OAuth] Error:', response);
+            setError(response.error_description || response.error);
+            return;
+          }
+          console.log('[OAuth] Sign-in successful, token expires in:', response.expires_in, 'seconds');
+          OAuthStorage.saveTokens(response.access_token, response.expires_in);
+          setIsSignedIn(true);
+        },
+        error_callback: (err) => {
+          setIsLoading(false);
+          console.error('[OAuth] Error callback:', err);
+          setError(err.message || 'Anmeldung fehlgeschlagen');
+        },
+      });
+
+      tokenClient.requestAccessToken();
+    } catch (e) {
+      setIsLoading(false);
+      console.error('[OAuth] Exception:', e);
+      setError(e.message || 'Unbekannter Fehler');
+    }
+  }, []);
+
+  const signOut = useCallback(() => {
+    const token = OAuthStorage.getToken();
+    if (token && window.google?.accounts?.oauth2) {
+      try {
+        window.google.accounts.oauth2.revoke(token, () => {
+          console.log('[OAuth] Token revoked');
+        });
+      } catch (e) {
+        console.warn('[OAuth] Revoke failed:', e);
+      }
+    }
+    OAuthStorage.clearTokens();
+    setIsSignedIn(false);
+    setError(null);
+    console.log('[OAuth] Signed out');
+  }, []);
+
+  return { isSignedIn, isLoading, error, signIn, signOut };
+}
 
 // ============================================
 // COMPONENTS
@@ -638,6 +771,7 @@ function ApiKeySettings({ isOpen, onClose }) {
   const [inputs, setInputs] = useState({ openai: '', gemini: '' });
   const [savedKeys, setSavedKeys] = useState({ openai: false, gemini: false });
   const [validating, setValidating] = useState(null);
+  const googleAuth = useGoogleAuth();
 
   useEffect(() => {
     setSavedKeys({
@@ -691,16 +825,16 @@ function ApiKeySettings({ isOpen, onClose }) {
             </div>
           </div>
 
-          {/* Gemini Key (enables Nano Banana + Gemini) */}
-          <div className="p-4 bg-slate-700/50 rounded-lg space-y-3">
+          {/* Google Gemini / Nano Banana Section */}
+          <div className="p-4 bg-slate-700/50 rounded-lg space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="text-lg">🔑</span>
-                <span className="font-medium text-white">Google Gemini</span>
+                <span className="text-lg">🍌</span>
+                <span className="font-medium text-white">Google Nano Banana</span>
               </div>
-              {savedKeys.gemini && (
+              {(googleAuth.isSignedIn || savedKeys.gemini) && (
                 <span className="px-2 py-1 rounded text-xs font-medium bg-green-500/20 text-green-400">
-                  ✓ Saved
+                  ✓ {googleAuth.isSignedIn ? 'OAuth' : 'API Key'}
                 </span>
               )}
             </div>
@@ -708,9 +842,56 @@ function ApiKeySettings({ isOpen, onClose }) {
             <div className="flex items-center gap-2 text-xs">
               <span className="text-slate-400">Enables:</span>
               <span className="px-2 py-0.5 bg-slate-600 rounded text-slate-300">🍌 Nano Banana</span>
-              <span className="px-2 py-0.5 bg-slate-600 rounded text-slate-300">🔵 Gemini</span>
+              <span className="px-2 py-0.5 bg-slate-600 rounded text-slate-300">✨ Nano Banana Pro</span>
             </div>
 
+            {/* Google OAuth Sign-In (Recommended) */}
+            <div className="p-3 bg-blue-900/30 rounded-lg border border-blue-500/30">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex-1">
+                  <h4 className="text-blue-300 font-medium text-sm">🔐 Google Sign-In</h4>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Höhere Quotas wie gemini.google.com
+                  </p>
+                </div>
+                {googleAuth.isSignedIn ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-green-400 text-xs">✓ Angemeldet</span>
+                    <button
+                      onClick={googleAuth.signOut}
+                      className="px-3 py-1.5 bg-red-600/50 hover:bg-red-600 rounded text-xs text-white"
+                    >
+                      Abmelden
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={googleAuth.signIn}
+                    disabled={googleAuth.isLoading}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600
+                               rounded flex items-center gap-2 text-white text-sm whitespace-nowrap"
+                  >
+                    {googleAuth.isLoading ? (
+                      <span className="animate-pulse">⏳</span>
+                    ) : (
+                      <>🔑 Mit Google anmelden</>
+                    )}
+                  </button>
+                )}
+              </div>
+              {googleAuth.error && (
+                <p className="text-red-400 text-xs mt-2">❌ {googleAuth.error}</p>
+              )}
+            </div>
+
+            {/* Divider */}
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-px bg-slate-600"></div>
+              <span className="text-slate-500 text-xs">ODER API Key</span>
+              <div className="flex-1 h-px bg-slate-600"></div>
+            </div>
+
+            {/* API Key Input (Fallback) */}
             {savedKeys.gemini ? (
               <div className="flex items-center gap-2">
                 <div className="flex-1 p-2 bg-slate-800 rounded text-slate-400 font-mono text-sm">
@@ -731,13 +912,13 @@ function ApiKeySettings({ isOpen, onClose }) {
                     value={inputs.gemini}
                     onChange={(e) => setInputs(prev => ({ ...prev, gemini: e.target.value }))}
                     placeholder="AIza..."
-                    className="flex-1 p-2 bg-slate-800 rounded text-white placeholder-slate-500 
+                    className="flex-1 p-2 bg-slate-800 rounded text-white placeholder-slate-500
                                focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
                   />
                   <button
                     onClick={() => handleSave('gemini')}
                     disabled={validating === 'gemini' || !inputs.gemini.trim()}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600
                                rounded text-white text-sm min-w-[80px]"
                   >
                     {validating === 'gemini' ? '⏳' : 'Save'}
@@ -838,9 +1019,11 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
   const [progress, setProgress] = useState('');
   const [selectedProvider, setSelectedProvider] = useState('auto');
 
+  const hasOAuthToken = OAuthStorage.hasValidToken();
   const hasGeminiKey = ApiKeyStorage.hasKey('gemini');
+  const hasGeminiAuth = hasOAuthToken || hasGeminiKey;  // OAuth takes priority
   const hasOpenAIKey = ApiKeyStorage.hasKey('openai');
-  const hasAnyKey = hasGeminiKey || hasOpenAIKey;
+  const hasAnyKey = hasGeminiAuth || hasOpenAIKey;
 
   const handleGenerate = async () => {
     if (!prompt) return;
@@ -850,9 +1033,10 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
     setResult(null);
 
     // Determine provider - Nano Banana is the requested primary model
+    // OAuth or API key both enable Nano Banana
     let provider = selectedProvider;
     if (provider === 'auto') {
-      provider = hasGeminiKey ? 'nanobanana' : 'pollinations';
+      provider = hasGeminiAuth ? 'nanobanana' : 'pollinations';
     }
 
     const config = PROVIDER_CONFIG[provider];
@@ -878,10 +1062,21 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
 
       } else if (provider === 'nanobanana' || provider === 'gemini3') {
         // Nano Banana uses generateContent with responseModalities: ["IMAGE"]
+        // Check for OAuth token first (higher quotas), then fall back to API key
+        const oauthToken = OAuthStorage.getToken();
         const geminiKey = ApiKeyStorage.getKey('gemini');
-        if (!geminiKey) {
-          throw new Error('Gemini API key not configured');
+
+        if (!oauthToken && !geminiKey) {
+          throw new Error('Bitte mit Google anmelden oder Gemini API Key eingeben');
         }
+
+        // Build auth headers - OAuth takes priority
+        const authHeaders = oauthToken
+          ? { 'Authorization': `Bearer ${oauthToken}` }
+          : { 'x-goog-api-key': geminiKey };
+
+        const authMethod = oauthToken ? 'OAuth' : 'API Key';
+        console.log(`[NanoBanana] Using ${authMethod} authentication`);
 
         // Real model names from ListModels API:
         // - gemini-2.0-flash-preview-image-generation = Recommended for higher quotas
@@ -897,7 +1092,7 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
 
         for (const model of modelsToTry) {
           try {
-            setProgress(`${config.icon} Trying ${model}...`);
+            setProgress(`${config.icon} ${authMethod}: ${model}...`);
 
             const response = await fetch(
               `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
@@ -905,7 +1100,7 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
-                  'x-goog-api-key': geminiKey,
+                  ...authHeaders,
                 },
                 body: JSON.stringify({
                   contents: [{ parts: [{ text: prompt }] }],
@@ -970,7 +1165,7 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
 
           for (const model of imagenModels) {
             try {
-              setProgress(`${config.icon} Trying ${model}...`);
+              setProgress(`${config.icon} ${authMethod}: ${model}...`);
 
               const response = await fetch(
                 `https://generativelanguage.googleapis.com/v1beta/models/${model}:predict`,
@@ -978,7 +1173,7 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
                   method: 'POST',
                   headers: {
                     'Content-Type': 'application/json',
-                    'x-goog-api-key': geminiKey,
+                    ...authHeaders,
                   },
                   body: JSON.stringify({
                     instances: [{ prompt: prompt }],
