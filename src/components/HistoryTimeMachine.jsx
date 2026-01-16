@@ -898,7 +898,8 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
         for (const model of modelsToTry) {
           try {
             setProgress(`${config.icon} Trying ${model}...`);
-            const apiVersion = model.includes('preview') || model.includes('exp') ? 'v1beta' : 'v1';
+            // All image generation models require v1beta per official docs
+            const apiVersion = 'v1beta';
 
             const response = await fetch(
               `https://generativelanguage.googleapis.com/${apiVersion}/models/${model}:generateContent`,
