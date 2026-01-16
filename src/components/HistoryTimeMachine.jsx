@@ -884,12 +884,14 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
         }
 
         // Real model names from ListModels API:
+        // - gemini-2.0-flash-preview-image-generation = Recommended for higher quotas
         // - gemini-2.5-flash-image = "Nano Banana"
         // - gemini-3-pro-image-preview = "Nano Banana Pro"
         // - imagen-4.0-generate-001 = "Imagen 4" (uses :predict)
+        // Note: Dec 2025 Google reduced free API quotas significantly
         const modelsToTry = provider === 'gemini3'
-          ? ['gemini-3-pro-image-preview', 'gemini-2.5-flash-image']
-          : ['gemini-2.5-flash-image', 'gemini-3-pro-image-preview'];
+          ? ['gemini-3-pro-image-preview', 'gemini-2.0-flash-preview-image-generation', 'gemini-2.5-flash-image']
+          : ['gemini-2.0-flash-preview-image-generation', 'gemini-2.5-flash-image', 'gemini-3-pro-image-preview'];
 
         let lastError = null;
 
@@ -908,7 +910,10 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
                 body: JSON.stringify({
                   contents: [{ parts: [{ text: prompt }] }],
                   generationConfig: {
-                    responseModalities: ["IMAGE", "TEXT"]
+                    responseModalities: ["IMAGE", "TEXT"],
+                    imageConfig: {
+                      aspectRatio: "16:9"
+                    }
                   }
                 }),
               }
@@ -918,6 +923,15 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
               const errorData = await response.json().catch(() => ({}));
               const errMsg = errorData.error?.message || `API error: ${response.status}`;
               const errStatus = response.status;
+
+              // Check if quota exhausted (Dec 2025 Google reduced free API quotas)
+              const isQuotaIssue = errMsg.includes('limit: 0') ||
+                                   errMsg.includes('quota exceeded') ||
+                                   errMsg.includes('RESOURCE_EXHAUSTED');
+              if (isQuotaIssue) {
+                console.warn(`[NanoBanana] ${model} quota exhausted - Dec 2025 API limits may apply`);
+                setProgress('⚠️ Gemini quota exhausted, trying next option...');
+              }
 
               console.warn(`[NanoBanana] ${model} failed (${errStatus}): ${errMsg}`);
               lastError = `${model}: ${errMsg}`;
@@ -994,10 +1008,15 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
           }
         }
 
-        // If still no image, fall back to Pollinations (always works)
+        // If still no image, fall back to Pollinations (always works, free & unlimited)
         if (!imageUrl) {
           console.log('[Fallback] All Gemini/Imagen models failed, using Pollinations...');
-          setProgress('🆓 Falling back to Pollinations...');
+          // Show helpful message about why Gemini failed
+          if (lastError?.includes('quota') || lastError?.includes('limit') || lastError?.includes('EXHAUSTED')) {
+            setProgress('🆓 Gemini quota exhausted → Pollinations (kostenlos & unbegrenzt)');
+          } else {
+            setProgress('🆓 Switching to Pollinations...');
+          }
 
           const encodedPrompt = encodeURIComponent(prompt);
           const seed = Math.floor(Math.random() * 1000000);
