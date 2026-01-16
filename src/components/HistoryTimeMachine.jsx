@@ -888,10 +888,10 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
           throw new Error('Gemini API key not configured');
         }
 
-        // Nano Banana models - gemini-2.5-flash-image is the primary free-tier model
+        // Nano Banana models - fallback chain with proven working models
         const modelsToTry = provider === 'gemini3'
           ? ['gemini-3-pro-image-preview']
-          : ['gemini-2.5-flash-image', 'gemini-2.5-flash-image-preview'];
+          : ['gemini-2.5-flash-image', 'gemini-2.0-flash-exp'];
 
         let lastError = null;
 
@@ -912,7 +912,10 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
                 body: JSON.stringify({
                   contents: [{ parts: [{ text: prompt }] }],
                   generationConfig: {
-                    responseModalities: ["TEXT", "IMAGE"]
+                    responseModalities: ["TEXT", "IMAGE"],
+                    imageConfig: {
+                      aspectRatio: "16:9"
+                    }
                   }
                 }),
               }
@@ -921,9 +924,15 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
             if (!response.ok) {
               const errorData = await response.json().catch(() => ({}));
               const errMsg = errorData.error?.message || `API error: ${response.status}`;
-              if (errMsg.includes('quota') || errMsg.includes('Quota') || errMsg.includes('limit: 0')) {
-                console.warn(`Model ${model} failed with quota, trying next...`);
-                lastError = errMsg;
+              const errStatus = response.status;
+
+              // Handle quota errors and model-not-found by trying next model
+              const isQuotaError = errMsg.includes('quota') || errMsg.includes('Quota') || errMsg.includes('limit: 0') || errStatus === 429;
+              const isModelNotFound = errStatus === 404 || errMsg.includes('not found') || errMsg.includes('is not found');
+
+              if (isQuotaError || isModelNotFound) {
+                console.warn(`[Gemini] Model ${model} failed (${errStatus}): ${errMsg}`);
+                lastError = `${model}: ${errMsg}`;
                 continue; // Try next model in the chain
               }
               throw new Error(errMsg);
