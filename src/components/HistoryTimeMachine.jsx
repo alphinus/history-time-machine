@@ -909,8 +909,7 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
                   'x-goog-api-key': geminiKey,
                 },
                 body: JSON.stringify({
-                  contents: [{ parts: [{ text: prompt }] }],
-                  generationConfig: { response_modalities: ['TEXT', 'IMAGE'] }
+                  contents: [{ parts: [{ text: prompt }] }]
                 }),
               }
             );
