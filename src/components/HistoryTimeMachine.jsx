@@ -22,10 +22,10 @@ const CATEGORY_CONFIG = {
 };
 
 const PROVIDER_CONFIG = {
-  // 🍌 NANO BANANA - The primary free tier image generation model
-  nanobanana: { name: 'Nano Banana (Free Tier)', icon: '🍌', color: 'amber', keyType: 'gemini', model: 'gemini-2.5-flash-image' },
-  // ✨ NANO BANANA PRO
-  gemini3: { name: 'Nano Banana Pro', icon: '✨', color: 'purple', keyType: 'gemini', model: 'gemini-3-pro-image-preview' },
+  // 🍌 IMAGEN - Uses :predict endpoint for image generation
+  nanobanana: { name: 'Imagen 3 (Free Tier)', icon: '🍌', color: 'amber', keyType: 'gemini', model: 'imagen-3.0-generate-002' },
+  // ✨ IMAGEN PRO
+  gemini3: { name: 'Imagen 3 Pro', icon: '✨', color: 'purple', keyType: 'gemini', model: 'imagen-3.0-generate-002' },
   // 🆓 POLLINATIONS - Backup free provider (unlimited)
   pollinations: { name: 'Pollinations (Backup)', icon: '🆓', color: 'emerald', keyType: null, model: 'flux' },
   // 🟢 DALL-E 3
@@ -882,27 +882,26 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
         }
 
       } else if (provider === 'nanobanana' || provider === 'gemini3') {
-        // Gemini API (requires API key)
+        // Imagen API - uses :predict endpoint, NOT :generateContent
         const geminiKey = ApiKeyStorage.getKey('gemini');
         if (!geminiKey) {
           throw new Error('Gemini API key not configured');
         }
 
-        // Nano Banana models - official image generation models (per ai.google.dev/gemini-api/docs/models)
+        // Imagen models - these use the :predict endpoint
         const modelsToTry = provider === 'gemini3'
-          ? ['gemini-3-pro-image-preview']
-          : ['gemini-2.5-flash-image', 'gemini-2.0-flash-preview-image-generation'];
+          ? ['imagen-3.0-generate-002', 'imagen-3.0-fast-generate-001']
+          : ['imagen-3.0-generate-002', 'imagen-3.0-fast-generate-001'];
 
         let lastError = null;
 
         for (const model of modelsToTry) {
           try {
             setProgress(`${config.icon} Trying ${model}...`);
-            // All image generation models require v1beta per official docs
-            const apiVersion = 'v1beta';
 
+            // Imagen uses :predict endpoint, NOT :generateContent
             const response = await fetch(
-              `https://generativelanguage.googleapis.com/${apiVersion}/models/${model}:generateContent`,
+              `https://generativelanguage.googleapis.com/v1beta/models/${model}:predict`,
               {
                 method: 'POST',
                 headers: {
@@ -910,12 +909,10 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
                   'x-goog-api-key': geminiKey,
                 },
                 body: JSON.stringify({
-                  contents: [{ parts: [{ text: prompt }] }],
-                  generationConfig: {
-                    responseModalities: ["TEXT", "IMAGE"],
-                    imageConfig: {
-                      aspectRatio: "16:9"
-                    }
+                  instances: [{ prompt: prompt }],
+                  parameters: {
+                    sampleCount: 1,
+                    aspectRatio: "16:9"
                   }
                 }),
               }
@@ -931,7 +928,7 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
               const isModelNotFound = errStatus === 404 || errMsg.includes('not found') || errMsg.includes('is not found');
 
               if (isQuotaError || isModelNotFound) {
-                console.warn(`[Gemini] Model ${model} failed (${errStatus}): ${errMsg}`);
+                console.warn(`[Imagen] Model ${model} failed (${errStatus}): ${errMsg}`);
                 lastError = `${model}: ${errMsg}`;
                 continue; // Try next model in the chain
               }
@@ -939,27 +936,23 @@ function ImageGenerationPanel({ prompt, onOpenSettings }) {
             }
 
             const data = await response.json();
-            const parts = data.candidates?.[0]?.content?.parts || [];
-            for (const part of parts) {
-              if (part.inlineData?.data) {
-                const mimeType = part.inlineData.mimeType || 'image/png';
-                imageUrl = `data:${mimeType};base64,${part.inlineData.data}`;
-                break;
-              }
+            // Imagen response format: { predictions: [{ bytesBase64Encoded: "...", mimeType: "..." }] }
+            const predictions = data.predictions || [];
+            if (predictions.length > 0 && predictions[0].bytesBase64Encoded) {
+              const mimeType = predictions[0].mimeType || 'image/png';
+              imageUrl = `data:${mimeType};base64,${predictions[0].bytesBase64Encoded}`;
             }
 
             if (imageUrl) break; // Success!
           } catch (e) {
-            console.error(`Trial with ${model} failed:`, e);
+            console.error(`[Imagen] Trial with ${model} failed:`, e);
             lastError = e.message;
-            if (!e.message.includes('quota') && !e.message.includes('limit: 0')) {
-              throw e; // Reraise non-quota errors
-            }
+            // Continue to next model for any error
           }
         }
 
         if (!imageUrl) {
-          throw new Error(`Nano Banana Quota reached on all models. ${lastError}`);
+          throw new Error(`Image generation failed on all models. ${lastError}`);
         }
 
       } else if (provider === 'openai') {
